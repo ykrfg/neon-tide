@@ -46,7 +46,7 @@ export function createWorld(random) {
     enemies: makePool(POOL.enemies, () => ({
       active: false, kind: 'drifter', x: 0, y: 0, vx: 0, vy: 0, hp: 1, maxHp: 1, radius: 10,
       speed: 0, score: 0, coreDamage: 0, touchDamage: 0, color: '#fff', phase: 0, spin: 0,
-      burstTimer: 0, spawnTimer: 0, flash: 0,
+      burstTimer: 0, spawnTimer: 0, flash: 0, age: 0,
     })),
     particles: makePool(POOL.particles, () => ({ active: false, x: 0, y: 0, vx: 0, vy: 0, life: 0, maxLife: 1, size: 2, color: '#fff' })),
     floaters: makePool(POOL.floaters, () => ({ active: false, x: 0, y: 0, life: 0, text: '', color: '#fff' })),
@@ -120,6 +120,7 @@ export function createWorld(random) {
     e.burstTimer = BOSS.burstInterval * (0.6 + random() * 0.4);
     e.spawnTimer = BOSS.spawnInterval;
     e.flash = 0;
+    e.age = 0;
     if (kind === 'boss') state.boss = e;
     return e;
   }
@@ -317,6 +318,21 @@ export function createWorld(random) {
       }
       player.x = Math.min(FIELD.width - PLAYER.radius, Math.max(PLAYER.radius, player.x + player.vx * dt));
       player.y = Math.min(FIELD.height - PLAYER.radius, Math.max(PLAYER.radius, player.y + player.vy * dt));
+      // A faint wake streams off the wisp while it moves: pure decoration, from the pool.
+      if ((player.vx !== 0 || player.vy !== 0) && random() < 0.55) {
+        const p = freeOf(state.particles);
+        if (p !== null) {
+          p.active = true;
+          p.x = player.x - player.vx * 0.03 + (random() - 0.5) * 8;
+          p.y = player.y - player.vy * 0.03 + (random() - 0.5) * 8;
+          p.vx = -player.vx * 0.12;
+          p.vy = -player.vy * 0.12;
+          p.maxLife = 0.32;
+          p.life = p.maxLife;
+          p.size = 2.4;
+          p.color = '#26e2ff';
+        }
+      }
 
       player.fireTimer -= dt;
       if (control.firing && player.fireTimer <= 0) {
@@ -370,6 +386,7 @@ export function createWorld(random) {
     for (const e of state.enemies) {
       if (!e.active) continue;
       if (e.flash > 0) e.flash -= dt;
+      e.age += dt;
       e.phase += dt * 3;
       let tx = core.x;
       let ty = core.y;
@@ -430,6 +447,28 @@ export function createWorld(random) {
             }
           }
         }
+      }
+    }
+
+    // Drifters keep a little air between them, so a wave reads as a tide of shapes
+    // and not one stacked blob: overlapping pairs are eased apart, the boss unmoved.
+    for (let i = 0; i < state.enemies.length; i += 1) {
+      const a = state.enemies[i];
+      if (!a.active || a.kind === 'boss') continue;
+      for (let j = i + 1; j < state.enemies.length; j += 1) {
+        const b = state.enemies[j];
+        if (!b.active || b.kind === 'boss') continue;
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const rr = (a.radius + b.radius) * 0.82;
+        const d2 = dx * dx + dy * dy;
+        if (d2 === 0 || d2 >= rr * rr) continue;
+        const d = Math.sqrt(d2);
+        const push = ((rr - d) / d) * 0.5 * 0.6;
+        a.x -= dx * push;
+        a.y -= dy * push;
+        b.x += dx * push;
+        b.y += dy * push;
       }
     }
 

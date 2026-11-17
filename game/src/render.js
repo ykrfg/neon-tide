@@ -103,6 +103,12 @@ export function createRenderer(canvas) {
     const core = state.core;
     const pulse = 1 + Math.sin(state.time * 2.4) * 0.06;
     const r = CORE.radius * pulse;
+    // A soft halo on the arena floor, so the Core lights its own neighbourhood.
+    const halo = context.createRadialGradient(core.x, core.y, 0, core.x, core.y, 190);
+    halo.addColorStop(0, 'rgba(61, 255, 200, 0.13)');
+    halo.addColorStop(1, 'rgba(61, 255, 200, 0)');
+    context.fillStyle = halo;
+    context.fillRect(core.x - 190, core.y - 190, 380, 380);
     context.save();
     context.translate(core.x, core.y);
     context.rotate(state.time * 0.5);
@@ -169,6 +175,11 @@ export function createRenderer(canvas) {
   function drawEnemy(e, time) {
     context.save();
     context.translate(e.x, e.y);
+    // A drifter folds in over its first third of a second instead of popping into being.
+    if (e.age < 0.3) {
+      const s = 0.4 + 0.6 * (e.age / 0.3);
+      context.scale(s, s);
+    }
     const spin = time * (0.6 + Math.abs(e.spin)) * Math.sign(e.spin || 1) + e.phase;
     context.rotate(spin);
     context.lineWidth = e.kind === 'boss' ? 4 : 2.5;

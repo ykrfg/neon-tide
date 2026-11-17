@@ -25,11 +25,15 @@ function nearestEnemy(state, x, y) {
 }
 
 /**
- * One autopilot step: circle the Core at a fighting distance, aim at the nearest drifter
- * and keep firing. Good enough to look like a player mid-wave, and fully deterministic.
+ * Play the world forward with an autopilot: circle the Core at a fighting distance and
+ * aim at the nearest drifter. It holds its fire for all but the last `fireTail` seconds,
+ * so the wave has time to close in and fill the arena before the shooting starts — the
+ * frame then catches the moment the fight turns, bullets in flight and the tide at the
+ * door. Fully deterministic: the world's seed fixes every spawn and wobble.
  */
-function autopilotStep(world, seconds) {
+function autopilotStep(world, seconds, fireTail = seconds) {
   const steps = Math.round(seconds / STEP);
+  const fireSteps = Math.round(fireTail / STEP);
   for (let i = 0; i < steps; i += 1) {
     const state = world.state;
     const p = state.player;
@@ -52,7 +56,7 @@ function autopilotStep(world, seconds) {
       moveY,
       aimX: target === null ? CORE.x : target.x,
       aimY: target === null ? 0 : target.y,
-      firing: target !== null,
+      firing: target !== null && i >= steps - fireSteps,
       dash: false,
     });
     if (state.over || state.victory) break;
@@ -71,11 +75,12 @@ function idleSteps(world, seconds) {
 export function stageShot(name, world) {
   const state = world.state;
   if (name === 'action') {
-    world.startWave(2);
-    state.score = 1350;
-    state.player.hp = 76;
-    state.core.hp = 84;
-    autopilotStep(world, 7);
+    world.startWave(5);
+    state.score = 4200;
+    autopilotStep(world, 13, 1.6);
+    // The HUD tells the run's story, not the staging's: set the bars after the fight.
+    state.player.hp = 72;
+    state.core.hp = 80;
     return SCREEN_PLAY;
   }
   if (name === 'boss') {
@@ -92,6 +97,7 @@ export function stageShot(name, world) {
     world.step(STEP, IDLE); // the wave-clear step: the world itself draws the three choices
     return SCREEN_UPGRADE;
   }
-  idleSteps(world, 2.5);
+  // 2.8 s lands inside the title prompt's lit half of its blink cycle.
+  idleSteps(world, 2.8);
   return SCREEN_TITLE;
 }
